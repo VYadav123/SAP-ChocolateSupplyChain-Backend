@@ -1,0 +1,30 @@
+{
+  "name": "chocolate-supplychain",
+  "version": "1.0.0",
+  "dependencies": {
+    "@cap-js/hana": "^2",
+    "@sap/cds": "^9",
+    "@sap/hana-client": "^2.29.25",
+    "@sap/hdi-deploy": "^5",
+    "express": "^4"
+  },
+  "devDependencies": {
+    "@cap-js/sqlite": "^2.4",
+    "@sap/cds-dk": "^9"
+  },
+  "scripts": {
+    "start": "cds-serve"
+  },
+  "private": true,
+  "engines": {
+    "node": "^22"
+  },
+  "cds": {
+    "requires": {
+      "auth": "mocked"
+    },
+    "preview": {
+      "coview": true
+    }
+  }
+}

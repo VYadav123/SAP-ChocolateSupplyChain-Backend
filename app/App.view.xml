@@ -1,0 +1,83 @@
+<mvc:View
+    controllerName="chocolate.monitor.App"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m">
+    <App>
+        <Page title="Operations Control Dashboard" class="sapUiContentPadding">
+            <headerContent>
+                <Button icon="sap-icon://refresh" press="onRefreshData" tooltip="Refresh Dashboard"/>
+            </headerContent>
+            <content>
+                
+                <!-- SECTION 1: Top KPI Tiles -->
+                <HBox class="sapUiSmallMarginBottom" justifyContent="SpaceBetween">
+                    <GenericTile header="Total Ingestion Events" subheader="Last 24 Hours">
+                        <TileContent>
+                            <NumericContent value="3" valueColor="Neutral" icon="sap-icon://shipping-status"/>
+                        </TileContent>
+                    </GenericTile>
+
+                    <GenericTile header="High-Moisture Risks" subheader="Active Alerts">
+                        <TileContent>
+                            <NumericContent value="3" valueColor="Error" icon="sap-icon://warning2"/>
+                        </TileContent>
+                    </GenericTile>
+
+                    <GenericTile header="Ingested Cocoa Stock" subheader="Current Shift">
+                        <TileContent>
+                            <NumericContent value="17.5" scale="K Kg" valueColor="Good" icon="sap-icon://inventory"/>
+                        </TileContent>
+                    </GenericTile>
+                </HBox>
+
+                <!-- SECTION 2: Vendor Deliveries & Quality Table -->
+                <Table
+                    id="deliveriesTable"
+                    items="{
+                        path: '/VendorDeliveries',
+                        parameters: {
+                            '$count': true
+                        }
+                    }"
+                    growing="true"
+                    growingThreshold="10"
+                    noDataText="No vendor deliveries recorded.">
+                    <headerToolbar>
+                        <OverflowToolbar>
+                            <Title text="Incoming Material Deliveries" level="H2"/>
+                            <ToolbarSpacer/>
+                            <SearchField width="30%" search="onSearch"/>
+                        </OverflowToolbar>
+                    </headerToolbar>
+                    <columns>
+                        <Column><Text text="Delivery Note"/></Column>
+                        <Column><Text text="Vendor ID"/></Column>
+                        <Column><Text text="Ingredient"/></Column>
+                        <Column hAlign="End"><Text text="Quantity (Kg)"/></Column>
+                        <Column hAlign="End"><Text text="Moisture %"/></Column>
+                        <Column hAlign="Center"><Text text="Quality Status"/></Column>
+                    </columns>
+                    <items>
+                        <ColumnListItem>
+                            <cells>
+                                <ObjectIdentifier title="{deliveryNote}" text="{dockNumber}"/>
+                                <Text text="{vendorId}"/>
+                                <Text text="{ingredient}"/>
+                                <ObjectNumber number="{quantityKg}" unit="kg"/>
+                                <ObjectNumber 
+                                    number="{moisturePercentage}" 
+                                    unit="%" 
+                                    state="{= ${moisturePercentage} > 6.5 ? 'Error' : 'Success' }"/>
+                                <ObjectStatus
+                                    text="{= ${moisturePercentage} > 6.5 ? 'CRITICAL RISK' : 'PASSED' }"
+                                    state="{= ${moisturePercentage} > 6.5 ? 'Error' : 'Success' }"
+                                    icon="{= ${moisturePercentage} > 6.5 ? 'sap-icon://alert' : 'sap-icon://sys-enter-2' }"/>
+                            </cells>
+                        </ColumnListItem>
+                    </items>
+                </Table>
+                
+            </content>
+        </Page>
+    </App>
+</mvc:View>
