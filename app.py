@@ -20,7 +20,7 @@ tab1, tab2 = st.tabs(["🚚 Live Deliveries Monitor", "🛠️ DLQ Reprocessing 
 # TAB 1: LIVE DELIVERIES MONITOR
 # =============================================================================
 with tab1:
-    st.header("Real-Time Vendor Delivery Ingestion")
+    st.header("Real-Time Vendor Delivery Ingestion & Quality Risk Monitor")
     
     BASE_APIM_URL = "https://trial-1-cnrgefos-trial.integrationsuitetrial-apim.ap21.hana.ondemand.com/trial-1-cnrgefos/v1/catalog/VendorDeliveries"
 
@@ -37,17 +37,29 @@ with tab1:
         df = fetch_apim_data()
 
         if not df.empty:
-            # Convert types for calculation
-            df["quantityKg"] = pd.to_numeric(df["quantityKg"], errors="coerce")
-            df["moisturePercentage"] = pd.to_numeric(df["moisturePercentage"], errors="coerce")
-
-            # KPI Summary Cards
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Total Ingestion Events", len(df))
+            # Convert numeric types for calculations
+            df["quantityKg"] = pd.to_numeric(df["quantityKg"], errors="coerce").fillna(0.0)
+            df["moisturePercentage"] = pd.to_numeric(df["moisturePercentage"], errors="coerce").fillna(0.0)
+            df["temperatureCelsius"] = pd.to_numeric(df["temperatureCelsius"], errors="coerce").fillna(0.0)
+            df["degradationRiskScore"] = pd.to_numeric(df.get("degradationRiskScore", 0.0), errors="coerce").fillna(0.0)
             
-            high_risk_count = len(df[df["moisturePercentage"] > 6.5])
-            col2.metric("High-Moisture Risks (>6.5%)", high_risk_count)
-            col3.metric("Total Ingested Stock (Kg)", f"{df['quantityKg'].sum():,.2f} Kg")
+            # Ensure riskLevel field exists
+            if "riskLevel" not in df.columns:
+                df["riskLevel"] = "LOW"
+
+            # -----------------------------------------------------------------
+            # KPI Summary Cards
+            # -----------------------------------------------------------------
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Total Deliveries", len(df))
+            
+            critical_risk_count = len(df[df["riskLevel"] == "CRITICAL"])
+            col2.metric("Critical Degradation Risks 🚨", critical_risk_count)
+            
+            avg_risk = df["degradationRiskScore"].mean() if not df.empty else 0.0
+            col3.metric("Avg Batch Risk Score", f"{avg_risk:.1f} / 100")
+            
+            col4.metric("Total Ingested Stock (Kg)", f"{df['quantityKg'].sum():,.2f} Kg")
 
             st.markdown("---")
 
@@ -77,38 +89,53 @@ with tab1:
             # Row-by-Row Display with Individual Delete Actions
             # -----------------------------------------------------------------
             # Table Columns Header
-            h_c1, h_c2, h_c3, h_c4, h_c5, h_c6, h_c7, h_c8 = st.columns([2, 2, 1.5, 1.5, 2, 1.5, 1.5, 1])
-            h_c1.write("**Event ID**")
-            h_c2.write("**Delivery Note**")
-            h_c3.write("**Vendor ID**")
-            h_c4.write("**Dock**")
-            h_c5.write("**Ingredient**")
-            h_c6.write("**Qty (Kg)**")
-            h_c7.write("**Moisture %**")
-            h_c8.write("**Action**")
+            h_c1, h_c2, h_c3, h_c4, h_c5, h_c6, h_c7, h_c8, h_c9 = st.columns([1.8, 1.8, 1.2, 1.2, 1.2, 1.2, 1.5, 1.2, 0.8])
+            h_c1.write("**Delivery Note**")
+            h_c2.write("**Vendor ID**")
+            h_c3.write("**Ingredient**")
+            h_c4.write("**Qty (Kg)**")
+            h_c5.write("**Temp (°C)**")
+            h_c6.write("**Moisture %**")
+            h_c7.write("**Risk Score**")
+            h_c8.write("**Risk Level**")
+            h_c9.write("**Action**")
             st.markdown("---")
 
-            # Render individual rows with delete buttons
+            # Render individual rows with risk indicators and delete buttons
             for idx, row in df.iterrows():
                 r_id = row.get("ID") or row.get("eventId")
-                is_high_moisture = row["moisturePercentage"] > 6.5
+                risk_score = row["degradationRiskScore"]
+                risk_lvl = str(row.get("riskLevel", "LOW")).upper()
                 
-                c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([2, 2, 1.5, 1.5, 2, 1.5, 1.5, 1])
+                c1, c2, c3, c4, c5, c6, c7, c8, c9 = st.columns([1.8, 1.8, 1.2, 1.2, 1.2, 1.2, 1.5, 1.2, 0.8])
                 
-                c1.write(f"`{row['eventId']}`")
-                c2.write(row.get('deliveryNote', ''))
-                c3.write(row.get('vendorId', ''))
-                c4.write(row.get('dockNumber', ''))
-                c5.write(row.get('ingredient', ''))
-                c6.write(f"{row['quantityKg']:.2f}")
+                c1.write(f"`{row.get('deliveryNote', '')}`")
+                c2.write(row.get('vendorId', ''))
+                c3.write(row.get('ingredient', ''))
+                c4.write(f"{row['quantityKg']:.1f}")
+                c5.write(f"{row['temperatureCelsius']:.1f}°C")
                 
-                if is_high_moisture:
-                    c7.markdown(f"**:red[{row['moisturePercentage']:.2f}%]**")
+                # Highlight moisture if > 6.5%
+                if row['moisturePercentage'] > 6.5:
+                    c6.markdown(f"**:red[{row['moisturePercentage']:.2f}%]**")
                 else:
-                    c7.write(f"{row['moisturePercentage']:.2f}%")
+                    c6.write(f"{row['moisturePercentage']:.2f}%")
+
+                # Display degradation risk score
+                c7.write(f"**{risk_score:.2f}** / 100")
+
+                # Format Risk Level Badge
+                if risk_lvl == "CRITICAL":
+                    c8.markdown("🚨 **:red[CRITICAL]**")
+                elif risk_lvl == "HIGH":
+                    c8.markdown("⚠️ **:orange[HIGH]**")
+                elif risk_lvl == "MEDIUM":
+                    c8.markdown("🟡 **:violet[MEDIUM]**")
+                else:
+                    c8.markdown("✅ **:green[LOW]**")
 
                 # Single-row delete button
-                if c8.button("🗑️", key=f"del_row_{r_id}_{idx}", help="Delete this row from HANA DB"):
+                if c9.button("🗑️", key=f"del_row_{r_id}_{idx}", help="Delete this row from HANA DB"):
                     del_endpoint = f"{BASE_APIM_URL}({r_id})"
                     res = requests.delete(del_endpoint)
                     
@@ -120,15 +147,15 @@ with tab1:
                     else:
                         st.error(f"Failed ({res.status_code}): {res.text}")
 
-            # Operator Action Protocol
-            if high_risk_count > 0:
+            # Operator Action Protocol for Critical Risks
+            if critical_risk_count > 0:
                 st.warning("""
-                ### 🚨 High-Moisture Alert Protocol (Moisture > 6.5%)
-                **Immediate Action Required for Highlighted Deliveries:**
-                1. **Quarantine Loading Dock:** Do not discharge cargo into main storage silos to prevent mould contamination.
-                2. **Notify Quality Control (QC):** Dispatch an on-site lab tech to pull a manual validation sample.
-                3. **Inspect Dehumidification & Dryers:** If approved for conditional acceptance, route through pre-drying hoppers.
-                4. **Supplier Debit Note:** Flag delivery record in SAP S/4HANA for automated penalty billing/chargeback.
+                ### 🚨 Degradation Risk & Quality Alert Protocol
+                **Immediate Action Required for CRITICAL/HIGH Risk Deliveries:**
+                1. **Quarantine Cargo:** Do not discharge high-risk ingredients into main production silos.
+                2. **Priority Batch Scheduling:** Route 'HIGH Risk' batches to immediate processing lines to avoid shelf decay.
+                3. **Notify Quality Control (QC):** Dispatch lab technician to verify active mould/degradation markers.
+                4. **Supplier Penalty Charge:** Record risk score metrics for automated SLA penalty calculation in SAP S/4HANA.
                 """)
 
         else:
@@ -314,7 +341,6 @@ with tab2:
                 )
 
                 if retrigger_res.status_code in [200, 202]:
-                    # Visual acknowledgment banner & toast before auto-refresh
                     st.success(f"✅ Entry `{selected_entry_id}` successfully retriggered into pipeline!")
                     st.toast("Payload submitted & cleared from DLQ Data Store!", icon="🎉")
                     st.json(retrigger_res.json())
