@@ -14,7 +14,7 @@ st.set_page_config(
 st.title("🏭 Chocolate Factory Supply Chain Command Center")
 
 # Create Navigation Tabs
-tab1, tab2 = st.tabs(["🚚 Live Deliveries Monitor", "🛠️ DLQ Reprocessing Console"])
+tab1, tab2, tab3 = st.tabs(["🚚 Live Deliveries Monitor", "🛠️ DLQ Reprocessing Console", "📉 Vendor Anomaly Intelligence"])
 
 # =============================================================================
 # TAB 1: LIVE DELIVERIES MONITOR
@@ -353,3 +353,34 @@ with tab2:
 
             except Exception as ex:
                 st.error(f"Execution Error: {ex}")
+
+with tab3:
+    st.header("📉 Predictive Vendor Anomaly & Performance Profiling")
+    
+    # Fetch Vendor Profiles
+    VENDOR_APIM_URL = "https://trial-1-cnrgefos-trial.integrationsuitetrial-apim.ap21.hana.ondemand.com/trial-1-cnrgefos/v1/catalog/VendorProfiles"
+    
+    try:
+        res = requests.get(VENDOR_APIM_URL)
+        if res.status_code == 200:
+            v_df = pd.DataFrame(res.json().get("value", []))
+            if not v_df.empty:
+                st.subheader("Vendor Trust Matrix")
+                
+                # Format Trust Badges
+                def style_trust(val):
+                    if val == 'PROBATION':
+                        return 'background-color: #ff4b4b; color: white;'
+                    elif val == 'WATCHLIST':
+                        return 'background-color: #ffa726; color: black;'
+                    return 'background-color: #81c784; color: black;'
+
+                st.dataframe(
+                    v_df[["vendorId", "totalDeliveries", "avgRiskScore", "anomalyScore", "vendorTrustLevel"]]
+                    .style.map(style_trust, subset=['vendorTrustLevel']),
+                    use_container_width=True
+                )
+            else:
+                st.info("No vendor historical anomaly profiles calculated yet.")
+    except Exception as e:
+        st.error(f"Error loading vendor analytics: {e}")

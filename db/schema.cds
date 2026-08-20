@@ -1,6 +1,15 @@
-namespace com.chocolatefactory.supplychain;      
-using { cuid, managed } from '@sap/cds/common';      
+namespace com.chocolatefactory.supplychain;
+using { cuid, managed } from '@sap/cds/common';
 
+entity VendorProfiles : managed {
+    key vendorId          : String(20);
+        vendorName        : String(100);
+        totalDeliveries   : Integer;
+        avgRiskScore      : Decimal(5, 2);
+        anomalyScore      : Decimal(5, 2); // Machine learning / moving statistical anomaly score
+        vendorTrustLevel  : String(15);    // 'TRUSTED', 'WATCHLIST', 'PROBATION'
+        lastAnomalyDate   : DateTime;
+}
 entity VendorDeliveries : cuid {      
     eventId            : String(50);      
     deliveryNote       : String(50);      
