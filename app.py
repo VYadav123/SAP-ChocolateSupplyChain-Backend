@@ -23,6 +23,7 @@ with tab1:
     st.header("Real-Time Vendor Delivery Ingestion & Quality Risk Monitor")
     
     BASE_APIM_URL = "https://trial-1-cnrgefos-trial.integrationsuitetrial-apim.ap21.hana.ondemand.com/trial-1-cnrgefos/v1/catalog/VendorDeliveries"
+    CAP_AI_ACTION_URL = "https://trial-1-cnrgefos-trial.integrationsuitetrial-apim.ap21.hana.ondemand.com/trial-1-cnrgefos/v1/catalog/analyzeQualityAnomaly"
 
     # Fetch data via APIM REST Endpoint
     @st.cache_data(ttl=5)
@@ -86,10 +87,9 @@ with tab1:
             st.markdown("---")
 
             # -----------------------------------------------------------------
-            # Row-by-Row Display with Individual Delete Actions
+            # Row-by-Row Display with Individual Actions & AI Analysis
             # -----------------------------------------------------------------
-            # Table Columns Header
-            h_c1, h_c2, h_c3, h_c4, h_c5, h_c6, h_c7, h_c8, h_c9 = st.columns([1.8, 1.8, 1.2, 1.2, 1.2, 1.2, 1.5, 1.2, 0.8])
+            h_c1, h_c2, h_c3, h_c4, h_c5, h_c6, h_c7, h_c8, h_c9, h_c10 = st.columns([1.5, 1.5, 1.2, 1.0, 1.0, 1.0, 1.2, 1.1, 0.8, 0.6])
             h_c1.write("**Delivery Note**")
             h_c2.write("**Vendor ID**")
             h_c3.write("**Ingredient**")
@@ -98,16 +98,17 @@ with tab1:
             h_c6.write("**Moisture %**")
             h_c7.write("**Risk Score**")
             h_c8.write("**Risk Level**")
-            h_c9.write("**Action**")
+            h_c9.write("**GenAI**")
+            h_c10.write("**Del**")
             st.markdown("---")
 
-            # Render individual rows with risk indicators and delete buttons
+            # Render individual rows
             for idx, row in df.iterrows():
                 r_id = row.get("ID") or row.get("eventId")
                 risk_score = row["degradationRiskScore"]
                 risk_lvl = str(row.get("riskLevel", "LOW")).upper()
                 
-                c1, c2, c3, c4, c5, c6, c7, c8, c9 = st.columns([1.8, 1.8, 1.2, 1.2, 1.2, 1.2, 1.5, 1.2, 0.8])
+                c1, c2, c3, c4, c5, c6, c7, c8, c9, c10 = st.columns([1.5, 1.5, 1.2, 1.0, 1.0, 1.0, 1.2, 1.1, 0.8, 0.6])
                 
                 c1.write(f"`{row.get('deliveryNote', '')}`")
                 c2.write(row.get('vendorId', ''))
@@ -115,16 +116,13 @@ with tab1:
                 c4.write(f"{row['quantityKg']:.1f}")
                 c5.write(f"{row['temperatureCelsius']:.1f}°C")
                 
-                # Highlight moisture if > 6.5%
                 if row['moisturePercentage'] > 6.5:
                     c6.markdown(f"**:red[{row['moisturePercentage']:.2f}%]**")
                 else:
                     c6.write(f"{row['moisturePercentage']:.2f}%")
 
-                # Display degradation risk score
                 c7.write(f"**{risk_score:.2f}** / 100")
 
-                # Format Risk Level Badge
                 if risk_lvl == "CRITICAL":
                     c8.markdown("🚨 **:red[CRITICAL]**")
                 elif risk_lvl == "HIGH":
@@ -134,8 +132,28 @@ with tab1:
                 else:
                     c8.markdown("✅ **:green[LOW]**")
 
-                # Single-row delete button
-                if c9.button("🗑️", key=f"del_row_{r_id}_{idx}", help="Delete this row from HANA DB"):
+                # GenAI Root Cause Trigger Button
+                if c9.button("🤖", key=f"ai_btn_{r_id}_{idx}", help="Run Gemini AI Root Cause Diagnostic"):
+                    ai_payload = {
+                        "eventId": str(row.get("eventId", "")),
+                        "ingredient": str(row.get("ingredient", "")),
+                        "moisturePercentage": float(row["moisturePercentage"]),
+                        "temperatureCelsius": float(row["temperatureCelsius"]),
+                        "vendorId": str(row.get("vendorId", ""))
+                    }
+
+                    with st.spinner("Analyzing quality vectors with Gemini AI..."):
+                        try:
+                            ai_res = requests.post(CAP_AI_ACTION_URL, json=ai_payload, headers={"Content-Type": "application/json"}, timeout=15)
+                            if ai_res.status_code == 200:
+                                st.session_state[f"ai_report_{r_id}"] = ai_res.json().get("value")
+                            else:
+                                st.error(f"GenAI Error ({ai_res.status_code}): {ai_res.text}")
+                        except Exception as ai_err:
+                            st.error(f"Failed to reach GenAI service: {ai_err}")
+
+                # Delete Button
+                if c10.button("🗑️", key=f"del_row_{r_id}_{idx}", help="Delete row from DB"):
                     del_endpoint = f"{BASE_APIM_URL}({r_id})"
                     res = requests.delete(del_endpoint)
                     
@@ -146,6 +164,22 @@ with tab1:
                         st.rerun()
                     else:
                         st.error(f"Failed ({res.status_code}): {res.text}")
+
+                # Render GenAI Analysis Card beneath the selected row
+                if f"ai_report_{r_id}" in st.session_state:
+                    with st.expander(f"🤖 Gemini AI Diagnostic Report — {row.get('deliveryNote', r_id)}", expanded=True):
+                        raw_ai_str = st.session_state[f"ai_report_{r_id}"]
+                        try:
+                            # Clean code blocks if Gemini returns markdown formatted JSON
+                            clean_json = raw_ai_str.replace("```json", "").replace("```", "").strip()
+                            parsed_ai = json.loads(clean_json)
+                            
+                            st.markdown(f"**Root Cause:** {parsed_ai.get('rootCause', 'N/A')}")
+                            st.markdown("**Recommended Action Items:**")
+                            for item in parsed_ai.get("actionItems", []):
+                                st.markdown(f"- {item}")
+                        except Exception:
+                            st.write(raw_ai_str)
 
             # Operator Action Protocol for Critical Risks
             if critical_risk_count > 0:
@@ -354,6 +388,9 @@ with tab2:
             except Exception as ex:
                 st.error(f"Execution Error: {ex}")
 
+# =============================================================================
+# TAB 3: VENDOR ANOMALY INTELLIGENCE
+# =============================================================================
 with tab3:
     st.header("📉 Predictive Vendor Anomaly & Performance Profiling")
     

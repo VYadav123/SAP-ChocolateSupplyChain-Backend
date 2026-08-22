@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "dependencies": {
     "@cap-js/hana": "^2",
+    "@google/genai": "^2.18.0",
     "@sap/cds": "^9",
     "@sap/hana-client": "^2.29.25",
     "@sap/hdi-deploy": "^5",
+    "dotenv": "^17.4.2",
     "express": "^4"
   },
   "devDependencies": {

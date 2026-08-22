@@ -19,6 +19,8 @@ modules:
     parameters:
       instances: 1
       buildpack: nodejs_buildpack
+    # Added environment variables section below
+    
     build-parameters:
       builder: npm-ci
     provides:

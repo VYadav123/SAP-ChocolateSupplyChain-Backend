@@ -1,9 +1,56 @@
+require('dotenv').config();
 const cds = require('@sap/cds');
+const { GoogleGenAI } = require('@google/genai');
 
 module.exports = cds.service.impl(async function () {
     const { VendorDeliveries, VendorProfiles } = this.entities;
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-    // 1. BEFORE CREATE: Calculate Degradation Risk Score for incoming delivery
+    // -------------------------------------------------------------------------
+    // 1. CUSTOM ACTION: GenAI Root Cause Analysis via Google Gemini API
+    // -------------------------------------------------------------------------
+    this.on('analyzeQualityAnomaly', async (req) => {
+        const { eventId, ingredient, moisturePercentage, temperatureCelsius, vendorId } = req.data;
+
+        const prompt = `
+You are an expert Food Manufacturing Quality Control Specialist in a modern chocolate factory.
+Analyze the following out-of-spec incoming delivery payload and generate an executive quality report.
+
+--- Delivery Details ---
+- Vendor ID: ${vendorId || 'N/A'}
+- Event ID: ${eventId || 'N/A'}
+- Ingredient: ${ingredient || 'N/A'}
+- Moisture Level: ${moisturePercentage}% (Quality Standard: <= 6.5%)
+- Temperature: ${temperatureCelsius}°C (Optimal Range: 18.0°C - 24.0°C)
+
+--- Instructions ---
+Provide a clean JSON response with exactly two keys:
+1. "rootCause": A clear, concise 2-sentence explanation of why this delivery poses a quality or shelf-degradation risk.
+2. "actionItems": A bulleted list (array of strings) specifying immediate operational steps for warehouse and QC personnel.
+`;
+
+        try {
+            const response = await ai.models.generateContent({
+                model: 'gemini-3.6-flash',
+                contents: prompt,
+            });
+
+            return response.text;
+        } catch (error) {
+            console.error('Gemini GenAI Error:', error);
+            return JSON.stringify({
+                rootCause: "Unable to reach Gemini AI service. Default risk protocol engaged.",
+                actionItems: [
+                    "Quarantine payload at dock immediately.",
+                    "Notify Quality Control manager for manual inspection."
+                ]
+            });
+        }
+    });
+
+    // -------------------------------------------------------------------------
+    // 2. BEFORE CREATE: Calculate Degradation Risk Score for incoming delivery
+    // -------------------------------------------------------------------------
     this.before('CREATE', 'VendorDeliveries', (req) => {
         const data = req.data;
 
@@ -29,7 +76,9 @@ module.exports = cds.service.impl(async function () {
         data.riskLevel = level;
     });
 
-    // 2. AFTER CREATE: Calculate Vendor Anomaly Metrics & Update VendorProfiles Table
+    // -------------------------------------------------------------------------
+    // 3. AFTER CREATE: Calculate Vendor Anomaly Metrics & Update VendorProfiles
+    // -------------------------------------------------------------------------
     this.after('CREATE', 'VendorDeliveries', async (data, req) => {
         const vendorId = data.vendorId;
         if (!vendorId) return;
