@@ -2,13 +2,15 @@
   "name": "chocolate-supplychain",
   "version": "1.0.0",
   "dependencies": {
+    "@azure/storage-blob": "^12.33.0",
     "@cap-js/hana": "^2",
-    "@google/genai": "^2.18.0",
+    "@google/genai": "^2.21.0",
     "@sap/cds": "^9",
     "@sap/hana-client": "^2.29.25",
     "@sap/hdi-deploy": "^5",
     "dotenv": "^17.4.2",
-    "express": "^4"
+    "express": "^4",
+    "pdf-parse": "^2.4.5"
   },
   "devDependencies": {
     "@cap-js/sqlite": "^2.4",

@@ -41,3 +41,12 @@ entity QualityAlerts : cuid, managed {
     status       : String(15);
     resolvedBy   : String(100);
 }
+
+entity QualitySOPs : cuid, managed {
+    fileName      : String(255);      // e.g., "Cocoa_Beans_Quality_SOP.pdf"
+    blobUrl       : String(1000);     // Link to the raw PDF in Azure Blob Storage
+    sectionTitle  : String(255);      // e.g., "Section 4.2: Moisture & Temp Limits"
+    chunkText     : LargeString;      // Raw extracted text snippet
+    embedding     : Vector(768);      // HANA REAL_VECTOR representation (Google text-embedding-004)
+}
+
