@@ -1,0 +1,26 @@
+### Test 1: Trigger Automated Azure Blob PDF Ingestion
+POST http://localhost:4004/odata/v4/catalog/autoIngestBlobPDF
+Content-Type: application/json
+
+{
+  "blobName": "Cocoa_Beans_Quality_SOP.pdf"
+}
+
+###
+
+### Test 2: Verify Stored SOP Chunks
+GET http://localhost:4004/odata/v4/catalog/QualitySOPs?$select=fileName,sectionTitle,chunkText
+
+###
+
+### Test 3: Run RAG Grounded Anomaly Analysis
+POST http://localhost:4004/odata/v4/catalog/analyzeQualityAnomaly
+Content-Type: application/json
+
+{
+  "eventId": "EVT-9901",
+  "ingredient": "Cocoa Beans",
+  "moisturePercentage": 7.30,
+  "temperatureCelsius": 23.0,
+  "vendorId": "VEND-808"
+}
